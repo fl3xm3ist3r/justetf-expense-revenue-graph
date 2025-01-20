@@ -1,9 +1,18 @@
 // ==UserScript==
-// @name         JustEtf Expense/Revenue Graph
-// @version      1.1
+// @name         JustEtf Investment Expense/Revenue Graph
+// @version      1.2
 // @description  This script calculates and displays a graph that shows your expenses against your revenue
 // @match        https://www.justetf.com/ch/dashboard-activity.html?portfolioId=*
 // ==/UserScript==
+
+/*---------- DISCMAILER ----------*/
+// This script generates a dynamic expense vs revenue graph for investment tracking on justETF.
+// It is a quick and dirty solution intended for personal use or as a starting point for customization.
+// If you encounter issues or have suggestions for improvement, please contribute to the GitHub repository.
+// This script is not affiliated with or endorsed by JustETF. It is provided "as is" without any warranty.
+// This script is provided for personal use only. It relies on data from JustETF, which remains the property of its respective owners.
+// Ensure compliance with JustETF's terms of service when using this script.
+// License: MIT
 
 /*---------- Settings ----------*/
 const defaultStartDate = null; //ex: "10.10.2024"
