@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         JustEtf Investment Expense/Revenue Graph
-// @version      1.2
+// @version      1.3
 // @description  This script calculates and displays a graph that shows your expenses against your revenue
 // @match        https://www.justetf.com/*/dashboard-activity.html?portfolioId=*
 // ==/UserScript==
@@ -15,7 +15,7 @@
 // License: MIT
 
 /*---------- Settings ----------*/
-const defaultStartDate = null; //ex: "10.10.2024" (Format: "dd.mm.yyyy")
+const defaultStartDate = null; //ex: "10.10.2024" or "10/10/2024" (Format: "dd.mm.yyyy" or "dd/mm/yyyy")
 
 (async function () {
     ("use strict");
@@ -29,12 +29,11 @@ const defaultStartDate = null; //ex: "10.10.2024" (Format: "dd.mm.yyyy")
         return Date.UTC(2000 + year, month - 1, day);
     }
 
-    debugger;
     /*---------- Expense Data ----------*/
     const portfolioId = new URLSearchParams(window.location.search).get("portfolioId");
 
     const fetchTransactionData = async (portfolioId) => {
-        const response = await fetch(`https://www.justetf.com/ch/transactions.html?portfolioId=${portfolioId}`);
+        const response = await fetch(`https://www.justetf.com/de/transactions.html?portfolioId=${portfolioId}`);
         const parser = new DOMParser();
 
         return parser.parseFromString(await response.text(), "text/html");
@@ -162,11 +161,9 @@ const defaultStartDate = null; //ex: "10.10.2024" (Format: "dd.mm.yyyy")
     };
 
     /*---------- Date Range ----------*/
-    function convertDateFormat(fromDate) {
-        const parts = fromDate.split(".");
-        parts[2] = parts[2].slice(-2);
-
-        return parts.join(".");
+    function convertDateFormat(date) {
+        const parts = date.split(/[./]/);
+        return `${parts[0]}.${parts[1]}.${parts[2].slice(-2)}`;
     }
 
     function getDateRange() {
