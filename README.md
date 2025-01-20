@@ -39,6 +39,7 @@ This script is not affiliated with or endorsed by JustETF. It uses data from Jus
 -   A dynamic graph displaying expenses vs revenue over time.
 -   Automatically updates when date ranges are modified.
 -   Automated expense calculation based on your trade history.
+-   A preset default start date for the graph, configurable in investment-expense-vs-revenue-graph.js (line 18).
 
 ## Contribution
 

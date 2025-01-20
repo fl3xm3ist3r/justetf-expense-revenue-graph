@@ -15,7 +15,7 @@
 // License: MIT
 
 /*---------- Settings ----------*/
-const defaultStartDate = null; //ex: "10.10.2024"
+const defaultStartDate = null; //ex: "10.10.2024" (Format: "dd.mm.yyyy")
 
 (async function () {
     ("use strict");
@@ -29,6 +29,7 @@ const defaultStartDate = null; //ex: "10.10.2024"
         return Date.UTC(2000 + year, month - 1, day);
     }
 
+    debugger;
     /*---------- Expense Data ----------*/
     const portfolioId = new URLSearchParams(window.location.search).get("portfolioId");
 
