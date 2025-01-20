@@ -2,7 +2,7 @@
 // @name         JustEtf Investment Expense/Revenue Graph
 // @version      1.2
 // @description  This script calculates and displays a graph that shows your expenses against your revenue
-// @match        https://www.justetf.com/ch/dashboard-activity.html?portfolioId=*
+// @match        https://www.justetf.com/*/dashboard-activity.html?portfolioId=*
 // ==/UserScript==
 
 /*---------- DISCMAILER ----------*/
