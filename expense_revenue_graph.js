@@ -33,17 +33,16 @@ const defaultStartDate = null; //ex: "10.10.2024"
     const parseRowData = (row) => {
         const timestamp = dateToTimestamp(row.querySelector("td.tal-center")?.textContent.trim());
 
-        const parseCurrency = (selector, index) =>
-            parseFloat(
-                row
-                    .querySelectorAll(selector)
-                    [index]?.textContent.trim()
-                    .replace(".", "")
-                    .replace(",", ".")
-                    .replace("-", "") || 0
-            );
+        const parseCurrency = (selector, index, isExpense = false) => {
+            var selectedValue = row.querySelectorAll(selector)[index]?.textContent.trim();
 
-        const expense = parseCurrency("td.tal-right.column-priority-3.ws", 1);
+            return parseFloat(
+                `${isExpense && !selectedValue.includes("-") ? "-" : ""}` +
+                    selectedValue.replace(".", "").replace(",", ".").replace("-", "") || 0
+            );
+        };
+
+        const expense = parseCurrency("td.tal-right.column-priority-3.ws", 1, true);
         const fees = parseCurrency("td.tal-right.visible-lg", 0);
         const tax = parseCurrency("td.tal-right.visible-lg", 1);
 
@@ -55,7 +54,6 @@ const defaultStartDate = null; //ex: "10.10.2024"
 
     var expensesByTimestamp = Array.from(tableRows)
         .map(parseRowData)
-        .filter((data) => data.totalExpense > 0)
         .reduce((acc, { timestamp, totalExpense }) => {
             acc[timestamp] = (acc[timestamp] || 0) + totalExpense;
             return acc;
@@ -173,7 +171,6 @@ const defaultStartDate = null; //ex: "10.10.2024"
 
     // Initial render
     var [initialMinDate, initialMaxDate] = getDateRange();
-    debugger;
     if (defaultStartDate != null) {
         renderChart(dateToTimestamp(convertDateFormat(defaultStartDate)), initialMaxDate);
     } else {
