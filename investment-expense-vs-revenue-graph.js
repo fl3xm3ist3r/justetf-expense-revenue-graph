@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         JustEtf Investment Expense/Revenue Graph
-// @version      1.3
+// @version      1.3.1
 // @description  This script calculates and displays a graph that shows your expenses against your revenue
 // @match        https://www.justetf.com/*/dashboard-activity.html?portfolioId=*
 // ==/UserScript==
@@ -51,6 +51,12 @@ const defaultStartDate = null; //ex: "10.10.2024" or "10/10/2024" (Format: "dd.m
             );
         };
 
+        const type = row.querySelector("td")?.textContent.trim();
+
+        if (type !== "Einlieferung" && type !== "Auslieferung") {
+            return;
+        }
+
         const expense = parseCurrency("td.tal-right.column-priority-3.ws", 1, true);
         const fees = parseCurrency("td.tal-right.visible-lg", 0);
         const tax = parseCurrency("td.tal-right.visible-lg", 1);
@@ -63,6 +69,7 @@ const defaultStartDate = null; //ex: "10.10.2024" or "10/10/2024" (Format: "dd.m
 
     var expensesByTimestamp = Array.from(tableRows)
         .map(parseRowData)
+        .filter(Boolean)
         .reduce((acc, { timestamp, totalExpense }) => {
             acc[timestamp] = (acc[timestamp] || 0) + totalExpense;
             return acc;
