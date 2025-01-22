@@ -53,7 +53,7 @@ const defaultStartDate = null; //ex: "10.10.2024" or "10/10/2024" (Format: "dd.m
 
         const type = row.querySelector("td")?.textContent.trim();
 
-        if (type !== "Einlieferung" && type !== "Auslieferung") {
+        if (type !== "Einlieferung" && type !== "Auslieferung" && type !== "Kauf" && type !== "Verkauf") {
             return;
         }
 
