@@ -28,8 +28,7 @@ This script is not affiliated with or endorsed by JustETF. It uses data from Jus
 ## Installation
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) or a similar browser extension.
-2. Visit [`investment-expense-vs-revenue-graph.user.js`](./investment-expense-vs-revenue-graph.user.js) and click on the `Raw` button.
-3. Install the User Script in Tampermonkey.
+2. Click [here](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/raw/refs/heads/master/investment-expense-vs-revenue-graph.user.js) and Install the User Script in Tampermonkey.
 4. Visit your JustETF portfolio activity page, and the graph will automatically appear below the performance chart.
 
 **Important:** Ensure all your transactions are correctly registered on JustETF for the script to work properly. Only "Buy", "Sell", "Delivery" and "Dispatch" Transactions will be used.
