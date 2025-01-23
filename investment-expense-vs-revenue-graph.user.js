@@ -101,25 +101,31 @@ const manualAdjustments = [];
         return number.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    let totalAdjustment = 0;
-    manualAdjustments.forEach(({ date, adjustment }) => {
-        totalAdjustment += adjustment;
+    const makeManualAdjustments = () => {
+        let totalAdjustment = 0;
+        manualAdjustments.forEach(({ date, adjustment }) => {
+            totalAdjustment += adjustment;
 
-        /* PERFORMANCE CHART ADJUSTMENTS */
-        const timestamp = dateToTimestamp(convertDateFormat(date));
-        const futureDataPoints = performanceChart.series[0].data.filter(({ x }) => x >= timestamp);
-        futureDataPoints.forEach((data) => {
-            const expenseAtTime = getExpenseAtTime(data.x);
-            const actualValue = (expenseAtTime / 100) * (100 + data.y) + adjustment;
-            const percentage = ((actualValue - expenseAtTime) / expenseAtTime) * 100;
-            data.update({ y: percentage });
+            /* PERFORMANCE CHART ADJUSTMENTS */
+            const timestamp = dateToTimestamp(convertDateFormat(date));
+            const futureDataPoints = performanceChart.series[0].data.filter(({ x }) => x >= timestamp);
+            futureDataPoints.forEach((data) => {
+                const expenseAtTime = getExpenseAtTime(data.x);
+                const actualValue = (expenseAtTime / 100) * (100 + data.y) + adjustment;
+                const percentage = ((actualValue - expenseAtTime) / expenseAtTime) * 100;
+                data.update({ y: percentage });
+            });
+
+            /* MARKER ON ADJUSTMENTS */
+            futureDataPoints[0]?.update({
+                marker: { enabled: true, fillColor: "#ff6718", radius: 5 },
+            });
         });
 
-        /* MARKER ON ADJUSTMENTS */
-        futureDataPoints[0]?.update({
-            marker: { enabled: true, fillColor: "#ff6718", radius: 5 },
-        });
-    });
+        return totalAdjustment;
+    };
+
+    const totalAdjustment = makeManualAdjustments();
 
     /* TOTAL VALUE ADJUSTMENT */
     const totalValueElement = document.querySelector(".val.v-ellip");
@@ -191,7 +197,11 @@ const manualAdjustments = [];
     chartContainer.style.width = "100%";
     document.querySelector(".chartarea").appendChild(chartContainer);
 
-    const renderChart = (from, to) => {
+    const renderChart = (from, to, isInitial = false) => {
+        if (!isInitial) {
+            setTimeout(makeManualAdjustments, 500);
+        }
+
         const filteredExpenseData = expenseData.filter(({ x }) => x >= from && x <= to);
         filteredExpenseData.unshift({ x: to, y: getExpenseAtTime(to) });
         filteredExpenseData.push({ x: from, y: getExpenseAtTime(from) });
@@ -251,9 +261,9 @@ const manualAdjustments = [];
     /*---------- INITIALIZATION ----------*/
     let [initialMinDate, initialMaxDate] = getDateRange();
     if (defaultStartDate) {
-        renderChart(dateToTimestamp(convertDateFormat(defaultStartDate)), initialMaxDate);
+        renderChart(dateToTimestamp(convertDateFormat(defaultStartDate)), initialMaxDate, true);
     } else {
-        renderChart(initialMinDate, initialMaxDate);
+        renderChart(initialMinDate, initialMaxDate, true);
     }
 
     /* DATE RANGE UPDATE CHECK */
