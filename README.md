@@ -36,10 +36,11 @@ This script is not affiliated with or endorsed by JustETF. It uses data from Jus
 
 ## Features
 
--   A dynamic graph displaying expenses vs revenue over time.
--   Automatically updates when date ranges are modified.
--   Automated expense calculation based on your trade history.
--   A preset default start date for the graph, configurable in investment-expense-vs-revenue-graph.user.js (line 18).
+-   **Dynamic Expense vs. Revenue Graph**: A dynamic graph that visualizes expenses and revenue over time.
+-   **Real-Time Updates**: The graph automatically refreshes when you modify the date ranges.
+-   **Automated Expense Calculation**: Expenses are calculated automatically based on your trade history.
+-   **Configurable Default Start Date**: The graph comes with a preset default start date, which can be configured at [line 22](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L22).
+-   **Manual Adjustments for Untracked Stocks**: You can make manual adjustments for stocks that JustETF does not track. To implement this, populate the manualAdjustments array at [line 25](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L25) with the desired delta adjustment amount and the specific date for which you want to apply the adjustment. These manual adjustments will be visually represented by an orange dot on the graphs.
 
 ## Contribution
 
