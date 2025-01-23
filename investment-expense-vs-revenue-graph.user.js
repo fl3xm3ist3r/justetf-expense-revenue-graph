@@ -101,9 +101,15 @@ const manualAdjustments = [];
         return number.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     };
 
-    const makeManualAdjustments = () => {
+    const makeManualAdjustments = (from, to) => {
         let totalAdjustment = 0;
-        manualAdjustments.forEach(({ date, adjustment }) => {
+
+        var filtered = manualAdjustments.filter(({ date }) => {
+            const convertedDate = dateToTimestamp(convertDateFormat(date));
+            return (from === undefined || from <= convertedDate) && (to === undefined || convertedDate <= to);
+        });
+
+        filtered.forEach(({ date, adjustment }) => {
             totalAdjustment += adjustment;
 
             /* PERFORMANCE CHART ADJUSTMENTS */
@@ -148,12 +154,14 @@ const manualAdjustments = [];
             .replace(useComma ? /,/g : /\./g, ".")
     );
     revenueValue += totalAdjustment;
-    revenueElement.textContent = `${revenueValue > 0 ? "+" : "-"}${formatNumber(revenueValue, useComma)}`;
+    revenueElement.textContent = `${revenueValue > 0 ? "+" : ""}${formatNumber(revenueValue, useComma)}`;
+    revenueElement.className = revenueValue > 0 ? "val2 green" : "val2 red";
 
     /* PERCENTAGE ADJUSTMENT */
     const percentageElement = document.querySelector(".val.green") || document.querySelector(".val.red");
     const percentageValue = performanceChart.series[0].data.at(-1).y;
-    percentageElement.textContent = `${percentageValue > 0 ? "+" : "-"}${formatNumber(percentageValue, useComma)}%`;
+    percentageElement.textContent = `${percentageValue > 0 ? "+" : ""}${formatNumber(percentageValue, useComma)}%`;
+    percentageElement.className = percentageValue > 0 ? "val green" : "val red";
 
     /*---------- REVENUE DATA ----------*/
     const findAdjustment = (x) => manualAdjustments.find((e) => dateToTimestamp(convertDateFormat(e.date)) === x);
@@ -199,7 +207,7 @@ const manualAdjustments = [];
 
     const renderChart = (from, to, isInitial = false) => {
         if (!isInitial) {
-            setTimeout(makeManualAdjustments, 500);
+            setTimeout(makeManualAdjustments(from, to), 500);
         }
 
         const filteredExpenseData = expenseData.filter(({ x }) => x >= from && x <= to);
