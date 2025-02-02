@@ -51,8 +51,6 @@ const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
     }
 
     /*---------- TRANSACTION DATA PARSING ----------*/
-    let totalTaxAndFees = 0;
-
     function parseTransactionRow(row) {
         const type = row.querySelector("td").textContent.trim();
         if (!["Einlieferung", "Auslieferung", "Kauf", "Verkauf"].includes(type)) return;
@@ -68,9 +66,7 @@ const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
         const fees = parseCurrency("td.tal-right.visible-lg", 0);
         const tax = parseCurrency("td.tal-right.visible-lg", 1);
 
-        totalTaxAndFees += fees + tax;
-
-        return { timestamp, totalExpense: expense + fees + tax };
+        return { timestamp, totalExpense: expense + fees + tax, taxAndFee: fees + tax };
     }
 
     const transactionDoc = await fetchTransactionData(portfolioId);
@@ -99,8 +95,32 @@ const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
         return { x: timestamp, y: Math.round(currentTotalExpenses) };
     });
 
+    const taxAndFeeByTimestamp = Array.from(tableRows)
+        .map(parseTransactionRow)
+        .filter(Boolean)
+        .reduce((acc, { timestamp, totalExpense, taxAndFee }) => {
+            acc[timestamp] = (acc[timestamp] || 0) + taxAndFee;
+            return acc;
+        }, {});
+
+    const taxAndFees = Object.entries(taxAndFeeByTimestamp).map(([timestamp, taxAndFee]) => [
+        parseInt(timestamp),
+        taxAndFee,
+    ]);
+
+    const totalTaxAndFees = taxAndFees.reduce((sum, [, taxAndFee]) => sum + taxAndFee, 0);
+    let currentTotalTaxAndFees = totalTaxAndFees;
+
+    const taxAndFeeData = taxAndFees.map(([timestamp, taxAndFee], i) => {
+        if (i !== 0) {
+            currentTotalTaxAndFees -= taxAndFees[i - 1][1];
+        }
+        return { x: timestamp, y: Math.round(currentTotalTaxAndFees) };
+    });
+
     const performanceChart = Highcharts.charts[0];
     const getExpenseAtTime = (timestamp) => expenseData.find(({ x }) => x <= timestamp)?.y || 0;
+    const getTaxAndFeeAtTime = (timestamp) => taxAndFeeData.find(({ x }) => x <= timestamp)?.y || 0;
 
     /*---------- MANUAL ADJUSTMENTS ----------*/
     const totalAdjustment = MANUAL_ADJUSTMENTS.reduce((sum, { adjustment }) => sum + adjustment, 0);
@@ -176,7 +196,7 @@ const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
     }
 
     const revenueData = performanceChart.series[0].data.map(({ x, y }) => {
-        const baseExpense = getExpenseAtTime(x) - totalTaxAndFees;
+        const baseExpense = getExpenseAtTime(x) - getTaxAndFeeAtTime(x);
         const adjustment = findAdjustment(x);
         const isAdjusted = adjustment && !expenseData.some((data) => data.x === x);
 
