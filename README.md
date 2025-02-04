@@ -29,7 +29,7 @@ This script is not affiliated with or endorsed by JustETF. It uses data from Jus
 
 1. Install [Tampermonkey](https://www.tampermonkey.net/) or a similar browser extension.
 2. Click [here](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/raw/refs/heads/master/investment-expense-vs-revenue-graph.user.js) and Install the User Script in Tampermonkey.
-4. Visit your JustETF portfolio activity page, and the graph will automatically appear below the performance chart.
+3. Visit your JustETF portfolio activity page, and the graph will automatically appear below the performance chart.
 
 **Important:** Ensure all your transactions are correctly registered on JustETF for the script to work properly. Only "Buy", "Sell", "Delivery" and "Dispatch" Transactions will be used.
 
@@ -38,8 +38,9 @@ This script is not affiliated with or endorsed by JustETF. It uses data from Jus
 -   **Dynamic Expense vs. Revenue Graph**: A dynamic graph that visualizes expenses and revenue over time.
 -   **Real-Time Updates**: The graph automatically refreshes when you modify the date ranges.
 -   **Automated Expense Calculation**: Expenses are calculated automatically based on your trade history.
--   **Configurable Default Start Date**: The graph comes with a preset default start date, which can be configured at [line 22](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L22).
--   **Manual Adjustments for Untracked Stocks**: You can make manual adjustments for stocks that JustETF does not track. To implement this, populate the manualAdjustments array at [line 25](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L25) with the desired delta adjustment amount and the specific date for which you want to apply the adjustment. These manual adjustments will be visually represented by an orange dot on the graphs.
+-   **Configurable Default Start Date**: The graph comes with a preset default start date, which can be configured at [line 30](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L30).
+-   **Manual Adjustments**: You can make manual adjustments for stocks that JustETF does not track. To implement this, populate the MANUAL_ADJUSTMENTS array at [line 32](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L32) with the desired delta adjustment amount and the specific date for which you want to apply the adjustment. These manual adjustments will be visually represented by an orange dot on the graphs.
+-   **Additional Stocks using Yahoo Finance**: You can add stocks that JustETF does not track. To implement this, populate the STOCKS_TRADING_HISTORY array at [line 35](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L35) with the desired Stocks just as you already know it from justETF. These stocks will be automatically included into the graphs. IMPORTANT: don't forget to set the EXCHANGE_RATES at [line 37](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L37) for your desired currency. This is needed since Yahoo Finance has different currencies for Stocks sometimes.
 
 ## Contribution
 
