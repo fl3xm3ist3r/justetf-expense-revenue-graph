@@ -152,6 +152,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
             currency: result.meta.currency,
             timestamp: result.timestamp,
             close: result.indicators.quote[0].close,
+            marketPrice: result.meta.regularMarketPrice,
         };
     }
 
@@ -201,17 +202,26 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         stockExpense += price * amount * exchange.rate;
 
         const firstDayTimestamp = getTimestampFromDate(date);
-        const firstDayAdjustment = (result.close[0] - price * exchange.reverse) * amount * exchange.rate;
+
+        const hasCloseData = Array.isArray(result.close) && result.close.length > 0;
+        const priceDifference = hasCloseData
+            ? result.close[0] - price * exchange.reverse
+            : result.marketPrice - price * exchange.reverse;
+
+        const firstDayAdjustment = priceDifference * amount * exchange.rate;
         applyStockAdjustment(firstDayTimestamp, firstDayAdjustment, isBuy);
 
-        for (let i = 1; i < result.timestamp.length; i++) {
-            let currentTimestamp = result.timestamp[i] * 1000;
-            if (i === result.timestamp.length - 1) {
-                currentTimestamp = performanceChart.series[0].data.at(-1).x;
-            }
+        if (hasCloseData) {
+            for (let i = 1; i < result.timestamp.length; i++) {
+                let currentTimestamp = result.timestamp[i] * 1000;
 
-            const dayAdjustment = (result.close[i] - result.close[i - 1]) * amount * exchange.rate;
-            applyStockAdjustment(currentTimestamp, dayAdjustment, isBuy);
+                if (i === result.timestamp.length - 1) {
+                    currentTimestamp = performanceChart.series[0].data.at(-1).x;
+                }
+
+                const dayAdjustment = (result.close[i] - result.close[i - 1]) * amount * exchange.rate;
+                applyStockAdjustment(currentTimestamp, dayAdjustment, isBuy);
+            }
         }
     }
 
