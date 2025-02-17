@@ -251,58 +251,45 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     /*---------- MANUAL ADJUSTMENTS ----------*/
     const manualAdjustmentsTotal = MANUAL_ADJUSTMENTS.reduce((sum, { adjustment }) => sum + adjustment, 0);
 
-    function applyManualAdjustments(from, to) {
-        const adjustments = MANUAL_ADJUSTMENTS.filter(({ date }) => {
-            const convertedDate = getTimestampFromDate(date);
-            return (from === undefined || from <= convertedDate) && (to === undefined || convertedDate <= to);
+    MANUAL_ADJUSTMENTS.forEach(({ date, adjustment }) => {
+        const timestamp = getTimestampFromDate(date);
+        const futureDataPoints = performanceChart.series[0].data.filter(({ x }) => x >= timestamp);
+        futureDataPoints.forEach((data) => {
+            const baseExpenseAtTime = getExpenseWithoutFeeAndTaxAtTime(data.x);
+            const actualValue = (baseExpenseAtTime / 100) * (100 + data.y) + adjustment;
+            const percentage = ((actualValue - baseExpenseAtTime) / baseExpenseAtTime) * 100;
+            data.update({ y: percentage });
         });
 
-        adjustments.forEach(({ date, adjustment }) => {
-            const timestamp = getTimestampFromDate(date);
-            const futureDataPoints = performanceChart.series[0].data.filter(({ x }) => x >= timestamp);
-            futureDataPoints.forEach((data) => {
-                const baseExpenseAtTime = getExpenseWithoutFeeAndTaxAtTime(data.x);
-                const actualValue = (baseExpenseAtTime / 100) * (100 + data.y) + adjustment;
-                const percentage = ((actualValue - baseExpenseAtTime) / baseExpenseAtTime) * 100;
-                data.update({ y: percentage });
-            });
-
-            // Mark manual adjustment data point.
-            futureDataPoints[0]?.update({ marker: { enabled: true, fillColor: "#ff6718", radius: 5 } });
-        });
-    }
-
-    applyManualAdjustments();
+        // Mark manual adjustment data point.
+        futureDataPoints[0]?.update({ marker: { enabled: true, fillColor: "#ff6718", radius: 5 } });
+    });
 
     /*---------- UI VALUE UPDATES ----------*/
-    function updateUI() {
-        const totalValueElement = document.querySelector(".val.v-ellip");
-        const totalValueParts = totalValueElement.textContent.split(" ");
-        const useComma = totalValueParts[1].charAt(totalValueParts[1].length - 3) === ",";
-        let totalValue = parseFloat(
-            totalValueParts[1].replace(useComma ? /\./g : /,/g, "").replace(useComma ? /,/g : /\./g, ".")
-        );
-        totalValue += manualAdjustmentsTotal + stockExpense + stockRevenue;
-        totalValueElement.textContent = `${totalValueParts[0]} ${formatNumber(totalValue, useComma)}`;
+    const totalValueElement = document.querySelector(".val.v-ellip");
+    const totalValueParts = totalValueElement.textContent.split(" ");
+    const useComma = totalValueParts[1].charAt(totalValueParts[1].length - 3) === ",";
+    let totalValue = parseFloat(
+        totalValueParts[1].replace(useComma ? /\./g : /,/g, "").replace(useComma ? /,/g : /\./g, ".")
+    );
+    totalValue += manualAdjustmentsTotal + stockExpense + stockRevenue;
+    totalValueElement.textContent = `${totalValueParts[0]} ${formatNumber(totalValue, useComma)}`;
 
-        const revenueElement = document.querySelector(".val2.green") || document.querySelector(".val2.red");
-        let revenueValue = parseFloat(
-            revenueElement.textContent
-                .replace(/[+\-]/g, "")
-                .replace(useComma ? /\./g : /,/g, "")
-                .replace(useComma ? /,/g : /\./g, ".")
-        );
-        revenueValue += manualAdjustmentsTotal + stockRevenue;
-        revenueElement.textContent = `${revenueValue > 0 ? "+" : ""}${formatNumber(revenueValue, useComma)}`;
-        revenueElement.className = revenueValue > 0 ? "val2 green" : "val2 red";
+    const revenueElement = document.querySelector(".val2.green") || document.querySelector(".val2.red");
+    let revenueValue = parseFloat(
+        revenueElement.textContent
+            .replace(/[+\-]/g, "")
+            .replace(useComma ? /\./g : /,/g, "")
+            .replace(useComma ? /,/g : /\./g, ".")
+    );
+    revenueValue += manualAdjustmentsTotal + stockRevenue;
+    revenueElement.textContent = `${revenueValue > 0 ? "+" : ""}${formatNumber(revenueValue, useComma)}`;
+    revenueElement.className = revenueValue > 0 ? "val2 green" : "val2 red";
 
-        const percentageElement = document.querySelector(".val.green") || document.querySelector(".val.red");
-        const percentageValue = performanceChart.series[0].data.at(-1).y;
-        percentageElement.textContent = `${percentageValue > 0 ? "+" : ""}${formatNumber(percentageValue, useComma)}%`;
-        percentageElement.className = percentageValue > 0 ? "val green" : "val red";
-    }
-
-    updateUI();
+    const percentageElement = document.querySelector(".val.green") || document.querySelector(".val.red");
+    const percentageValue = performanceChart.series[0].data.at(-1).y;
+    percentageElement.textContent = `${percentageValue > 0 ? "+" : ""}${formatNumber(percentageValue, useComma)}%`;
+    percentageElement.className = percentageValue > 0 ? "val green" : "val red";
 
     /*---------- REVENUE DATA CONSTRUCTION ----------*/
     function findAdjustment(x) {
@@ -344,11 +331,12 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     chartContainer.style.width = "100%";
     document.querySelector(".chartarea").appendChild(chartContainer);
 
-    function renderChart(from, to, isInitial = false) {
-        if (!isInitial) {
-            // Delay adjustments to ensure the chart is updated.
-            setTimeout(() => applyManualAdjustments(from, to), ADJUSTMENT_DELAY);
-        }
+    const highchartData = performanceChart.series[0].data.map(({ x, y, marker }) => ({ x, y, marker }));
+
+    function renderChart(from, to) {
+        const tmpHighChart = Highcharts.charts[0];
+        const filteredHighchartData = highchartData.filter(({ x }) => x >= from && x <= to);
+        tmpHighChart.series[0].setData(filteredHighchartData, true);
 
         // Filter expense data and include boundary points.
         const filteredExpenseData = expenseData.filter(({ x }) => x >= from && x <= to);
@@ -409,7 +397,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         ? dateToTimestamp(convertDateFormat(DEFAULT_START_DATE))
         : initialMinDate;
 
-    renderChart(startDateTimestamp, initialMaxDate, true);
+    renderChart(startDateTimestamp, initialMaxDate);
 
     // Check for date range changes periodically and re-render the chart.
     function dateRangeUpdateCheck() {
