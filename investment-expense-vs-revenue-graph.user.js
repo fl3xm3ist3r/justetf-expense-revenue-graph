@@ -148,10 +148,23 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
 
     function reduceStockResponse(data) {
         const result = data.chart.result[0];
+        const closes = result.indicators.quote[0].close;
+        const timestamps = result.timestamp;
+
+        const filteredTimestamps = [];
+        const filteredCloses = [];
+
+        for (let i = 0; i < closes.length; i++) {
+            if (closes[i] !== null && closes[i] !== undefined && timestamps[i] != null && timestamps[i] != undefined) {
+                filteredTimestamps.push(timestamps[i]);
+                filteredCloses.push(closes[i]);
+            }
+        }
+
         return {
             currency: result.meta.currency,
-            timestamp: result.timestamp,
-            close: result.indicators.quote[0].close,
+            timestamp: filteredTimestamps,
+            close: filteredCloses,
             marketPrice: result.meta.regularMarketPrice,
         };
     }
