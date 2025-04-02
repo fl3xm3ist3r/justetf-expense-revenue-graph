@@ -68,6 +68,12 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         return parser.parseFromString(await response.text(), "text/html");
     }
 
+    async function fetchUrlTransactionData(url) {
+        const response = await fetch(url);
+        const parser = new DOMParser();
+        return parser.parseFromString(await response.text(), "text/html");
+    }
+
     function parseTransactionRow(row) {
         const type = row.querySelector("td").textContent.trim();
         if (!Object.values(TRADING_TYPES).includes(type)) return;
@@ -90,6 +96,15 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     const tableRows = transactionDoc.querySelectorAll("table.table-hover tbody tr");
 
     const parsedRows = Array.from(tableRows).map(parseTransactionRow).filter(Boolean);
+
+    const paginationLinks = transactionDoc.querySelector(".pagination").querySelectorAll("li a");
+    for (let i = 3; i < paginationLinks.length - 2; i++) {
+        const pageUrl = paginationLinks[i].href;
+        const pageDoc = await fetchUrlTransactionData(pageUrl);
+        const pageRows = pageDoc.querySelectorAll("table.table-hover tbody tr");
+        const parsedPageRows = Array.from(pageRows).map(parseTransactionRow).filter(Boolean);
+        parsedRows.push(...parsedPageRows);
+    }
 
     const expensesByTimestamp = parsedRows.reduce((acc, { timestamp, totalExpense }) => {
         acc.set(timestamp, (acc.get(timestamp) || 0) + totalExpense);
