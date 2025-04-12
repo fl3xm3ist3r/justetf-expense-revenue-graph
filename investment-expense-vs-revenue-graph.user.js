@@ -32,13 +32,56 @@ const DEFAULT_START_DATE = null; // example: "dd.mm.yyyy" (null for default)
 const MANUAL_ADJUSTMENTS = []; // example: {date: "dd.mm.yyyy", adjustment: 1000} ([] for default)
 
 // Yahoo Finance (seecret) API based
-const STOCKS_TRADING_HISTORY = []; // example: { type: TRADING_TYPE.BUY, symbol: "", date: "dd.mm.yyyy", amount: 1, price: 100.5, fee: 2, tax: 0.5 } ([] for default)
+const STOCKS_TRADING_HISTORY = []; // example: { type: TRADING_TYPES.BUY, symbol: "", date: "dd.mm.yyyy", amount: 1, price: 100.5, fee: 2, tax: 0.5 } ([] for default)
 
 const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { name: "USD", rate: 0.91, reverse: 1.1 } ([] for default)
 
+let isInitialLoading = true;
+
+// Function to log messages to console and display only the current message during initial load.
+function logMessage(message) {
+    console.log(message);
+    if (isInitialLoading) {
+        let logContainer = document.getElementById("log-messages");
+        if (!logContainer) {
+            logContainer = document.createElement("div");
+            logContainer.id = "log-messages";
+            logContainer.style.fontFamily = "monospace";
+            logContainer.style.fontSize = "12px";
+            logContainer.style.marginBottom = "10px";
+            logContainer.style.color = "red";
+
+            const logTitle = document.createElement("div");
+            logTitle.id = "log-title";
+            logTitle.style.fontWeight = "bold";
+            logTitle.style.marginBottom = "3px";
+            logTitle.style.color = "black";
+            logTitle.style.fontSize = "20px";
+            logTitle.textContent = "JustEtf Investment Expense/Revenue Graph";
+            logContainer.appendChild(logTitle);
+
+            const logCurrentMessage = document.createElement("div");
+            logCurrentMessage.id = "log-current-message";
+            logContainer.appendChild(logCurrentMessage);
+
+            const chartArea = document.querySelector(".chartarea");
+            if (chartArea) {
+                chartArea.appendChild(logContainer);
+            } else {
+                document.body.insertAdjacentElement("afterbegin", logContainer);
+            }
+        }
+
+        const logCurrentMessage = document.getElementById("log-current-message");
+        if (logCurrentMessage) {
+            logCurrentMessage.textContent = message;
+        }
+    }
+}
+
 (async function () {
     ("use strict");
-    console.log("[Info]: Script started.");
+    logMessage("[Info]: Script started.");
 
     /*---------- UTILITY FUNCTIONS ----------*/
     const dateToTimestamp = (dateString) => {
@@ -64,14 +107,14 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     const portfolioId = new URLSearchParams(window.location.search).get("portfolioId");
 
     async function fetchTransactionData(id) {
-        console.log("[Info]: Fetching transaction data for portfolio:", id);
+        logMessage(`[Info]: Fetching transaction data for portfolio: ${id}`);
         const response = await fetch(`https://www.justetf.com/de/transactions.html?portfolioId=${id}`);
         const parser = new DOMParser();
         return parser.parseFromString(await response.text(), "text/html");
     }
 
     async function fetchUrlTransactionData(url) {
-        console.log("[Info]: Fetching URL transaction data from:", url);
+        logMessage(`[Info]: Fetching URL transaction data from: ${url}`);
         const response = await fetch(url);
         const parser = new DOMParser();
         return parser.parseFromString(await response.text(), "text/html");
@@ -96,9 +139,9 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     }
 
     const transactionDoc = await fetchTransactionData(portfolioId);
-    console.log("[Info]: Transaction data fetched.");
+    logMessage("[Info]: Transaction data fetched.");
     const tableRows = transactionDoc.querySelectorAll("table.table-hover tbody tr");
-    console.log("[Info]: Found", tableRows.length, "transaction rows.");
+    logMessage(`[Info]: Found ${tableRows.length} transaction rows.`);
 
     const parsedRows = Array.from(tableRows).map(parseTransactionRow).filter(Boolean);
 
@@ -106,7 +149,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     for (let i = 3; i < paginationLinks.length - 2; i++) {
         const pageUrl = paginationLinks[i].href;
         const pageDoc = await fetchUrlTransactionData(pageUrl);
-        console.log("[Info]: Fetched transactions from page URL:", pageUrl);
+        logMessage(`[Info]: Fetched transactions from page URL: ${pageUrl}`);
         const pageRows = pageDoc.querySelectorAll("table.table-hover tbody tr");
         const parsedPageRows = Array.from(pageRows).map(parseTransactionRow).filter(Boolean);
         parsedRows.push(...parsedPageRows);
@@ -116,14 +159,14 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         acc.set(timestamp, (acc.get(timestamp) || 0) + totalExpense);
         return acc;
     }, new Map());
-    console.log("[Info]: Calculated expenses by timestamp.");
+    logMessage("[Info]: Calculated expenses by timestamp.");
 
     STOCKS_TRADING_HISTORY.forEach(({ type, date, amount, price, fee, tax }) => {
         const timestamp = getTimestampFromDate(date);
         const total = type === TRADING_TYPES.BUY || type === TRADING_TYPES.DEPOSIT ? amount * price : -amount * price;
         expensesByTimestamp.set(timestamp, (expensesByTimestamp.get(timestamp) || 0) + total + fee + tax);
     });
-    console.log("[Info]: Processed STOCKS_TRADING_HISTORY for expenses.");
+    logMessage("[Info]: Processed STOCKS_TRADING_HISTORY for expenses.");
 
     const expenses = Array.from(expensesByTimestamp, ([timestamp, totalExpense]) => [Number(timestamp), totalExpense]);
     expenses.sort((a, b) => b[0] - a[0]);
@@ -137,13 +180,13 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         }
         return { x: timestamp, y: Math.round(currentTotalExpenses) };
     });
-    console.log("[Info]: Expense data constructed.");
+    logMessage("[Info]: Expense data constructed.");
 
     const taxAndFeeByTimestamp = parsedRows.reduce((acc, { timestamp, taxAndFee }) => {
         acc.set(timestamp, (acc.get(timestamp) || 0) + taxAndFee);
         return acc;
     }, new Map());
-    console.log("[Info]: Calculated tax and fee by timestamp.");
+    logMessage("[Info]: Calculated tax and fee by timestamp.");
 
     STOCKS_TRADING_HISTORY.forEach(({ date, fee, tax }) => {
         const timestamp = getTimestampFromDate(date);
@@ -162,15 +205,15 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         }
         return { x: timestamp, y: Math.round(currentTotalTaxAndFees) };
     });
-    console.log("[Info]: Tax and fee data constructed.");
+    logMessage("[Info]: Tax and fee data constructed.");
 
     const performanceChart = Highcharts.charts[0];
-    console.log("[Info]: Performance chart accessed.");
+    logMessage("[Info]: Performance chart accessed.");
     const getExpenseAtTime = (timestamp) => expenseData.find(({ x }) => x <= timestamp)?.y || 0;
     const getTaxAndFeeAtTime = (timestamp) => taxAndFeeData.find(({ x }) => x <= timestamp)?.y || 0;
 
     /*---------- STOCK TRADES ----------*/
-    console.log("[Info]: Processing STOCK TRADES.");
+    logMessage("[Info]: Processing STOCK TRADES.");
     let stockRevenue = 0;
     let stockExpense = 0;
 
@@ -201,7 +244,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
         const to = Math.floor(Date.now() / 1000);
         from = Math.floor(from / 1000);
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&period1=${from}&period2=${to}`;
-        console.log(`[Info]: Fetching stock history for symbol: ${symbol} starting from timestamp: ${from}`);
+        logMessage(`[Info]: Fetching stock history for symbol: ${symbol} starting from timestamp: ${from}`);
 
         return new Promise((resolve, reject) => {
             GM.xmlHttpRequest({
@@ -236,7 +279,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     }
 
     for (const { type, date, symbol, amount, price } of STOCKS_TRADING_HISTORY) {
-        console.log(`[Info]: Fetching stock data for symbol: ${symbol} with date: ${date}`);
+        logMessage(`[Info]: Fetching stock data for symbol: ${symbol} with date: ${date}`);
         const result = await fetchStockHistory(symbol, getTimestampFromDate(date));
         const exchange = EXCHANGE_RATES.find(({ name }) => name === result.currency);
 
@@ -266,10 +309,10 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
                 applyStockAdjustment(currentTimestamp, dayAdjustment, isBuy);
             }
         }
-        console.log(`[Info]: Stock adjustments applied for symbol: ${symbol}`);
+        logMessage(`[Info]: Stock adjustments applied for symbol: ${symbol}`);
     }
 
-    console.log("[Info]: Updating performance chart with stock adjustments.");
+    logMessage("[Info]: Updating performance chart with stock adjustments.");
     stockChanges.forEach((adjustment, timestamp) => {
         const dataPointIndex = [...performanceChart.series[0].data].reverse().findIndex(({ x }) => x <= timestamp);
         const adjustedIndex = dataPointIndex !== -1 ? performanceChart.series[0].data.length - 1 - dataPointIndex : -1;
@@ -289,12 +332,12 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
                 });
             }
         } else {
-            console.log("Datapoint wasn't found for timestamp: " + timestamp + ". STOCKS_TRADING_HISTORY!");
+            logMessage(`[Info]: Datapoint wasn't found for timestamp: ${timestamp}. STOCKS_TRADING_HISTORY!`);
         }
     });
 
     /*---------- MANUAL ADJUSTMENTS ----------*/
-    console.log("[Info]: Applying manual adjustments.");
+    logMessage("[Info]: Applying manual adjustments.");
     const manualAdjustmentsTotal = MANUAL_ADJUSTMENTS.reduce((sum, { adjustment }) => sum + adjustment, 0);
 
     MANUAL_ADJUSTMENTS.forEach(({ date, adjustment }) => {
@@ -312,7 +355,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     });
 
     /*---------- UI VALUE UPDATES ----------*/
-    console.log("[Info]: Updating UI values.");
+    logMessage("[Info]: Updating UI values.");
     const totalValueElement = document.querySelector(".val.v-ellip");
     const totalValueParts = totalValueElement.textContent.split(" ");
     const useComma = totalValueParts[1].charAt(totalValueParts[1].length - 3) === ",";
@@ -339,7 +382,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     percentageElement.className = percentageValue > 0 ? "val green" : "val red";
 
     /*---------- REVENUE DATA CONSTRUCTION ----------*/
-    console.log("[Info]: Constructing revenue data.");
+    logMessage("[Info]: Constructing revenue data.");
     function findAdjustment(x) {
         return MANUAL_ADJUSTMENTS.find((e) => getTimestampFromDate(e.date) === x);
     }
@@ -374,7 +417,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     });
 
     /*---------- CHART RENDERING ----------*/
-    console.log("[Info]: Rendering chart container.");
+    logMessage("[Info]: Rendering chart container.");
     const chartContainer = document.createElement("div");
     chartContainer.id = "expense-revenue-chart";
     chartContainer.style.width = "100%";
@@ -383,11 +426,10 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     const highchartData = performanceChart.series[0].data.map(({ x, y, marker }) => ({ x, y, marker }));
 
     function renderChart(from, to) {
-        console.log(
-            "[Info]: Rendering chart for range from " +
-                new Date(from).toLocaleDateString() +
-                " to " +
-                new Date(to).toLocaleDateString()
+        logMessage(
+            `[Info]: Rendering chart for range from ${new Date(from).toLocaleDateString()} to ${new Date(
+                to
+            ).toLocaleDateString()}`
         );
         const tmpHighChart = Highcharts.charts[0];
         const filteredHighchartData = highchartData.filter(({ x }) => x >= from && x <= to);
@@ -440,7 +482,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
 
     /*---------- DATE RANGE HANDLING ----------*/
     function getDateRange() {
-        console.log("[Info]: Getting date range from datepicker.");
+        logMessage("[Info]: Getting date range from datepicker.");
         const rangeText = document.getElementById("daterangepicker").querySelector("span").textContent.trim();
         const [fromDate, toDate] = rangeText.split(" - ");
 
@@ -448,7 +490,7 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
     }
 
     /*---------- INITIALIZATION ----------*/
-    console.log("[Info]: Initializing chart rendering.");
+    logMessage("[Info]: Initializing chart rendering.");
     let [initialMinDate, initialMaxDate] = getDateRange();
     const startDateTimestamp = DEFAULT_START_DATE
         ? dateToTimestamp(convertDateFormat(DEFAULT_START_DATE))
@@ -456,9 +498,15 @@ const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { n
 
     renderChart(startDateTimestamp, initialMaxDate);
 
+    // Once the chart is loaded for the first time remove the log container and disable further DOM logging.
+    if (document.getElementById("log-messages")) {
+        document.getElementById("log-messages").remove();
+    }
+    isInitialLoading = false;
+
     // Check for date range changes periodically and re-render the chart.
     function dateRangeUpdateCheck() {
-        console.log("[Info]: Checking for date range update.");
+        logMessage("[Info]: Checking for date range update.");
         const [minDate, maxDate] = getDateRange();
         if (minDate !== initialMinDate || maxDate !== initialMaxDate) {
             initialMinDate = minDate;
