@@ -57,7 +57,7 @@ function logMessage(message) {
             logTitle.style.marginBottom = "3px";
             logTitle.style.color = "black";
             logTitle.style.fontSize = "20px";
-            logTitle.textContent = "JustEtf Investment Expense/Revenue Graph";
+            logTitle.textContent = "JustEtf Investment Expense/Revenue Graph: Loading Log";
             logContainer.appendChild(logTitle);
 
             const logCurrentMessage = document.createElement("div");
