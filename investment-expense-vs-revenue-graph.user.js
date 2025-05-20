@@ -1,525 +1,180 @@
 // ==UserScript==
 // @name         JustEtf Investment Expense/Revenue Graph
-// @version      1.5
-// @description  Displays an investment expense vs. revenue graph on justETF
+// @version      1.10
+// @description  Displays an investment expense vs revenue graph on justETF
 // @match        https://www.justetf.com/*/dashboard-activity.html?portfolioId=*
 // @author       fl3xm3ist3r
 // @namespace    https://github.com/fl3xm3ist3r
-// @grant        GM.xmlHttpRequest
-// @connect      query1.finance.yahoo.com
+// @grant        none
 // ==/UserScript==
 
-/*---------- SCRIPT INFO ----------
-This script generates a dynamic expense vs revenue graph for investment tracking on justETF.
-It is a quick and dirty solution intended for personal use or as a starting point for customization.
-Ensure compliance with JustETF's terms of service when using this script.
-Licensed under the MIT License - https://opensource.org/licenses/MIT
------------------------------------*/
+(async function() {
+    'use strict';
 
-/*---------- CONFIGURATION ----------*/
-const TRADING_TYPES = {
-    DEPOSIT: "Einlieferung",
-    WITHDRAWAL: "Auslieferung",
-    BUY: "Kauf",
-    SELL: "Verkauf",
-};
-
-const MARKER_COLOR = {
-    ADJUSTMENT: "#ff6718",
-    STRATEGY: "#8a2be2",
-};
-
-const DATE_RANGE_UPDATE_INTERVAL = 5000; // in milliseconds
-const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
-
-const DEFAULT_START_DATE = null; // example: "dd.mm.yyyy" (null for default)
-
-const MANUAL_ADJUSTMENTS = []; // example: {date: "dd.mm.yyyy", adjustment: 1000, markerColor: MARKER_COLOR.ADJUSTMENT} ([] for default)
-
-// Yahoo Finance (seecret) API based
-const STOCKS_TRADING_HISTORY = []; // example: { type: TRADING_TYPE.BUY, symbol: "", date: "dd.mm.yyyy", amount: 1, price: 100.5, fee: 2, tax: 0.5 } ([] for default)
-
-const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { name: "USD", rate: 0.91, reverse: 1.1 } ([] for default)
-
-let isInitialLoading = true;
-
-// Function to log messages to console and display only the current message during initial load.
-function logMessage(message) {
-    console.log(message);
-    if (isInitialLoading) {
-        let logContainer = document.getElementById("log-messages");
-        if (!logContainer) {
-            logContainer = document.createElement("div");
-            logContainer.id = "log-messages";
-            logContainer.style.fontFamily = "monospace";
-            logContainer.style.fontSize = "12px";
-            logContainer.style.marginBottom = "10px";
-            logContainer.style.color = "red";
-
-            const logTitle = document.createElement("div");
-            logTitle.id = "log-title";
-            logTitle.style.fontWeight = "bold";
-            logTitle.style.marginBottom = "3px";
-            logTitle.style.color = "black";
-            logTitle.style.fontSize = "20px";
-            logTitle.textContent = "JustEtf Investment Expense/Revenue Graph: Loading Log";
-            logContainer.appendChild(logTitle);
-
-            const logCurrentMessage = document.createElement("div");
-            logCurrentMessage.id = "log-current-message";
-            logContainer.appendChild(logCurrentMessage);
-
-            const chartArea = document.querySelector(".chartarea");
-            if (chartArea) {
-                chartArea.appendChild(logContainer);
-            } else {
-                document.body.insertAdjacentElement("afterbegin", logContainer);
-            }
-        }
-
-        const logCurrentMessage = document.getElementById("log-current-message");
-        if (logCurrentMessage) {
-            logCurrentMessage.textContent = message;
-        }
-    }
-}
-
-(async function () {
-    ("use strict");
-    logMessage("[Info]: Script started.");
-
-    /*---------- UTILITY FUNCTIONS ----------*/
-    const dateToTimestamp = (dateString) => {
-        const [day, month, year] = dateString.split(".").map(Number);
-        return Date.UTC(2000 + year, month - 1, day);
+    /* CONFIG */
+    const TRADING_TYPES = {
+        DEPOSIT: "Einlieferung",
+        WITHDRAWAL: "Auslieferung",
+        BUY: "Kauf",
+        SELL: "Verkauf"
     };
+    const DATE_RANGE_UPDATE_INTERVAL = 5000;
+    const DEFAULT_START_DATE = null;
 
-    const getTimestampFromDate = (date) => dateToTimestamp(convertDateFormat(date));
-
-    const convertDateFormat = (date) => {
-        const [day, month, year] = date.split(/[./]/);
-        return `${day}.${month}.${year.slice(-2)}`;
-    };
-
-    const formatNumber = (number, useComma) => {
-        const locale = useComma ? "de-DE" : "en-US";
-        return number.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    };
-
-    const getExpenseWithoutFeeAndTaxAtTime = (timestamp) => getExpenseAtTime(timestamp) - getTaxAndFeeAtTime(timestamp);
-
-    /*---------- TRANSACTION DATA PARSING ----------*/
-    const portfolioId = new URLSearchParams(window.location.search).get("portfolioId");
-
-    async function fetchTransactionData(id) {
-        logMessage(`[Info]: Fetching transaction data for portfolio: ${id}`);
-        const response = await fetch(`https://www.justetf.com/de/transactions.html?portfolioId=${id}`);
-        const parser = new DOMParser();
-        return parser.parseFromString(await response.text(), "text/html");
+    /* UTILITIES */
+    function dateToTimestamp(dateString) {
+        const [d, m, y] = dateString.split(/[\.\/]/).map(Number);
+        const year = y < 100 ? 2000 + y : y;
+        return Date.UTC(year, m - 1, d);
     }
 
-    async function fetchUrlTransactionData(url) {
-        logMessage(`[Info]: Fetching URL transaction data from: ${url}`);
-        const response = await fetch(url);
-        const parser = new DOMParser();
-        return parser.parseFromString(await response.text(), "text/html");
+    async function fetchPage(url) {
+        const res = await fetch(url);
+        const html = await res.text();
+        return new DOMParser().parseFromString(html, 'text/html');
     }
 
     function parseTransactionRow(row) {
-        const type = row.querySelector("td").textContent.trim();
-        if (!Object.values(TRADING_TYPES).includes(type)) return;
+        const type = row.querySelector('td')?.textContent.trim();
+        if (!Object.values(TRADING_TYPES).includes(type)) return null;
 
-        const timestamp = dateToTimestamp(row.querySelector("td.tal-center").textContent.trim());
-        const parseCurrency = (selector, index, isExpense = false) => {
-            const value = row.querySelectorAll(selector)[index].textContent.trim();
-            const negativePrefix = isExpense && !value.includes("-") ? "-" : "";
-            return parseFloat(negativePrefix + value.replace(".", "").replace(",", ".").replace("-", ""));
-        };
+        const dateText = row.querySelector('td.tal-center')?.textContent.trim();
+        const timestamp = dateToTimestamp(dateText);
 
-        const expense = parseCurrency("td.tal-right.column-priority-3.ws", 1, true);
-        const fees = parseCurrency("td.tal-right.visible-lg", 0);
-        const tax = parseCurrency("td.tal-right.visible-lg", 1);
+        const cols = Array.from(
+            row.querySelectorAll('td.tal-right.column-priority-3.ws, td.tal-right.visible-lg')
+        ).map(cell => parseFloat(cell.textContent.replace(/\./g,'').replace(',', '.')));
+        const [count, expense, fee, tax] = cols;
 
-        return { timestamp, totalExpense: expense + fees + tax, taxAndFee: fees + tax };
+        return { timestamp, totalExpense: (expense * -1) + fee + tax, expenseWithoutTaxAndFee: (expense * -1) };
     }
 
-    const transactionDoc = await fetchTransactionData(portfolioId);
-    logMessage("[Info]: Transaction data fetched.");
-    const tableRows = transactionDoc.querySelectorAll("table.table-hover tbody tr");
-    logMessage(`[Info]: Found ${tableRows.length} transaction rows.`);
+    async function getAllTransactions(portfolioId) {
+        const baseUrl = `https://www.justetf.com/de/transactions.html?portfolioId=${portfolioId}`;
+        const doc = await fetchPage(baseUrl);
+        const rows = Array.from(doc.querySelectorAll('table.table-hover tbody tr'));
 
-    const parsedRows = Array.from(tableRows).map(parseTransactionRow).filter(Boolean);
+        const links = Array.from(doc.querySelectorAll('.pagination li a')).slice(3, -2).map(a => a.href);
+        for (const url of links) {
+            const page = await fetchPage(url);
+            rows.push(...page.querySelectorAll('table.table-hover tbody tr'));
+        }
 
-    const paginationLinks = transactionDoc.querySelector(".pagination").querySelectorAll("li a");
-    for (let i = 3; i < paginationLinks.length - 2; i++) {
-        const pageUrl = paginationLinks[i].href;
-        const pageDoc = await fetchUrlTransactionData(pageUrl);
-        logMessage(`[Info]: Fetched transactions from page URL: ${pageUrl}`);
-        const pageRows = pageDoc.querySelectorAll("table.table-hover tbody tr");
-        const parsedPageRows = Array.from(pageRows).map(parseTransactionRow).filter(Boolean);
-        parsedRows.push(...parsedPageRows);
+        return rows.map(parseTransactionRow).filter(Boolean);
     }
 
-    const expensesByTimestamp = parsedRows.reduce((acc, { timestamp, totalExpense }) => {
-        acc.set(timestamp, (acc.get(timestamp) || 0) + totalExpense);
-        return acc;
-    }, new Map());
-    logMessage("[Info]: Calculated expenses by timestamp.");
-
-    STOCKS_TRADING_HISTORY.forEach(({ type, date, amount, price, fee, tax }) => {
-        const timestamp = getTimestampFromDate(date);
-        const total = type === TRADING_TYPES.BUY || type === TRADING_TYPES.DEPOSIT ? amount * price : -amount * price;
-        expensesByTimestamp.set(timestamp, (expensesByTimestamp.get(timestamp) || 0) + total + fee + tax);
-    });
-    logMessage("[Info]: Processed STOCKS_TRADING_HISTORY for expenses.");
-
-    const expenses = Array.from(expensesByTimestamp, ([timestamp, totalExpense]) => [Number(timestamp), totalExpense]);
-    expenses.sort((a, b) => b[0] - a[0]);
-
-    const totalExpenses = expenses.reduce((sum, [, expense]) => sum + expense, 0);
-    let currentTotalExpenses = totalExpenses;
-
-    const expenseData = expenses.map(([timestamp], i) => {
-        if (i !== 0) {
-            currentTotalExpenses -= expenses[i - 1][1];
-        }
-        return { x: timestamp, y: Math.round(currentTotalExpenses) };
-    });
-    logMessage("[Info]: Expense data constructed.");
-
-    const taxAndFeeByTimestamp = parsedRows.reduce((acc, { timestamp, taxAndFee }) => {
-        acc.set(timestamp, (acc.get(timestamp) || 0) + taxAndFee);
-        return acc;
-    }, new Map());
-    logMessage("[Info]: Calculated tax and fee by timestamp.");
-
-    STOCKS_TRADING_HISTORY.forEach(({ date, fee, tax }) => {
-        const timestamp = getTimestampFromDate(date);
-        taxAndFeeByTimestamp.set(timestamp, (taxAndFeeByTimestamp.get(timestamp) || 0) + fee + tax);
-    });
-
-    const taxAndFees = Array.from(taxAndFeeByTimestamp, ([timestamp, taxAndFee]) => [Number(timestamp), taxAndFee]);
-    taxAndFees.sort((a, b) => b[0] - a[0]);
-
-    const totalTaxAndFees = taxAndFees.reduce((sum, [, taxAndFee]) => sum + taxAndFee, 0);
-    let currentTotalTaxAndFees = totalTaxAndFees;
-
-    const taxAndFeeData = taxAndFees.map(([timestamp], i) => {
-        if (i !== 0) {
-            currentTotalTaxAndFees -= taxAndFees[i - 1][1];
-        }
-        return { x: timestamp, y: Math.round(currentTotalTaxAndFees) };
-    });
-    logMessage("[Info]: Tax and fee data constructed.");
-
-    const performanceChart = Highcharts.charts[0];
-    logMessage("[Info]: Performance chart accessed.");
-    const getExpenseAtTime = (timestamp) => expenseData.find(({ x }) => x <= timestamp)?.y || 0;
-    const getTaxAndFeeAtTime = (timestamp) => taxAndFeeData.find(({ x }) => x <= timestamp)?.y || 0;
-
-    /*---------- STOCK TRADES ----------*/
-    logMessage("[Info]: Processing STOCK TRADES.");
-    let stockRevenue = 0;
-    let stockExpense = 0;
-
-    function reduceStockResponse(data) {
-        const result = data.chart.result[0];
-        const closes = result.indicators.quote[0].close;
-        const timestamps = result.timestamp;
-
-        const filteredTimestamps = [];
-        const filteredCloses = [];
-
-        for (let i = 0; i < closes.length; i++) {
-            if (closes[i] !== null && closes[i] !== undefined && timestamps[i] != null && timestamps[i] != undefined) {
-                filteredTimestamps.push(timestamps[i]);
-                filteredCloses.push(closes[i]);
-            }
-        }
-
-        return {
-            currency: result.meta.currency,
-            timestamp: filteredTimestamps,
-            close: filteredCloses,
-            marketPrice: result.meta.regularMarketPrice,
-        };
+    function aggregateByTimestamp(items, key) {
+        return items.reduce((map, item) => {
+            map.set(item.timestamp, (map.get(item.timestamp) || 0) + item[key]);
+            return map;
+        }, new Map());
     }
 
-    function fetchStockHistory(symbol, from) {
-        const to = Math.floor(Date.now() / 1000);
-        from = Math.floor(from / 1000);
-        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&period1=${from}&period2=${to}`;
-        logMessage(`[Info]: Fetching stock history for symbol: ${symbol} starting from timestamp: ${from}`);
-
-        return new Promise((resolve, reject) => {
-            GM.xmlHttpRequest({
-                method: "GET",
-                url: url,
-                headers: {
-                    "User-Agent": "Mozilla/5.0",
-                    Accept: "application/json",
-                },
-                onload: function (response) {
-                    try {
-                        const data = JSON.parse(response.responseText);
-                        resolve(reduceStockResponse(data));
-                    } catch (error) {
-                        logMessage(`[Error]: parsing JSON: ${error}`);
-                    }
-                },
-                onerror: function (error) {
-                    logMessage(`[Error]: fetching data: ${error}`);
-                },
-            });
+    function buildCumulativeSeries(map) {
+        const entries = Array.from(map.entries()).sort((a, b) => b[0] - a[0]);
+        let running = entries.reduce((sum, [, v]) => sum + v, 0);
+        return entries.map(([x, v]) => {
+            const y = Math.round(running);
+            running -= v;
+            return { x, y: Math.abs(y) };
         });
     }
 
-    const stockChanges = new Map();
+    /* LOAD MAIN DATA */
+    const portfolioId = new URLSearchParams(window.location.search).get('portfolioId');
+    const tx = await getAllTransactions(portfolioId);
 
-    function applyStockAdjustment(timestamp, dayAdjustment, isBuy) {
-        stockRevenue += dayAdjustment;
-        const percentualToTotal = (100 / getExpenseWithoutFeeAndTaxAtTime(timestamp)) * dayAdjustment;
-        const adjustment = isBuy ? percentualToTotal : -percentualToTotal;
-        stockChanges.set(timestamp, (stockChanges.get(timestamp) || 0) + adjustment);
+    const expMap = aggregateByTimestamp(tx, 'totalExpense');
+    const expWithoutFeeMap = aggregateByTimestamp(tx, 'expenseWithoutTaxAndFee');
+
+    const expenseData = buildCumulativeSeries(expMap);
+    const expenseWithoutTaxData = buildCumulativeSeries(expWithoutFeeMap);
+
+    function getExpenseAtTime(ts) {
+        const p = expenseData.find(pt => pt.x <= ts);
+        return p ? p.y : 0;
+    }
+    function getExpenseWithoutFeeAtTime(ts) {
+        const p = expenseWithoutTaxData.find(pt => pt.x <= ts);
+        return p ? p.y : 0;
     }
 
-    for (const { type, date, symbol, amount, price } of STOCKS_TRADING_HISTORY) {
-        logMessage(`[Info]: Fetching stock data for symbol: ${symbol} with date: ${date}`);
-        const result = await fetchStockHistory(symbol, getTimestampFromDate(date));
-        const exchange = EXCHANGE_RATES.find(({ name }) => name === result.currency);
+    /* CAPTURE ORIGINAL PERFORMANCE CHART DATA */
+    const perfChart = Highcharts.charts[0];
+    const highchartData = perfChart.series[0].data.map(({ x, y, marker }) => ({ x, y, marker }));
 
-        const isBuy = type === TRADING_TYPES.BUY || type === TRADING_TYPES.DEPOSIT;
-
-        stockExpense += price * amount * exchange.rate;
-
-        const firstDayTimestamp = getTimestampFromDate(date);
-
-        const hasCloseData = Array.isArray(result.close) && result.close.length > 0;
-        const priceDifference = hasCloseData
-            ? result.close[0] - price * exchange.reverse
-            : result.marketPrice - price * exchange.reverse;
-
-        const firstDayAdjustment = priceDifference * amount * exchange.rate;
-        applyStockAdjustment(firstDayTimestamp, firstDayAdjustment, isBuy);
-
-        if (hasCloseData) {
-            for (let i = 1; i < result.timestamp.length; i++) {
-                let currentTimestamp = result.timestamp[i] * 1000;
-
-                if (i === result.timestamp.length - 1) {
-                    currentTimestamp = performanceChart.series[0].data.at(-1).x;
-                }
-
-                const dayAdjustment = (result.close[i] - result.close[i - 1]) * amount * exchange.rate;
-                applyStockAdjustment(currentTimestamp, dayAdjustment, isBuy);
-            }
-        }
-        logMessage(`[Info]: Stock adjustments applied for symbol: ${symbol}`);
-    }
-
-    logMessage("[Info]: Updating performance chart with stock adjustments.");
-    stockChanges.forEach((adjustment, timestamp) => {
-        const dataPointIndex = [...performanceChart.series[0].data].reverse().findIndex(({ x }) => x <= timestamp);
-        const adjustedIndex = dataPointIndex !== -1 ? performanceChart.series[0].data.length - 1 - dataPointIndex : -1;
-        const dataPoint = adjustedIndex !== -1 ? performanceChart.series[0].data[adjustedIndex] : null;
-        if (dataPoint) {
-            dataPoint.update({ y: dataPoint.y + adjustment });
-
-            // Update weekends with the change of Friday
-            const date = new Date(dataPoint.x);
-            if (date.getDay() === 5) {
-                [1, 2].forEach((offset) => {
-                    const point = performanceChart.series[0].data[adjustedIndex + offset];
-
-                    if (point) {
-                        point.update({ y: point.y + adjustment });
-                    }
-                });
-            }
-        } else {
-            logMessage(`[Info]: Datapoint wasn't found for timestamp: ${timestamp}. STOCKS_TRADING_HISTORY!`);
-        }
+    /* CALCULATE REVENUE DATA */
+    let revenueData = perfChart.series[0].data.map(({ x, y: pct }) => {
+        const base = getExpenseWithoutFeeAtTime(x);
+        return { x, y: Math.round(base + (base * pct / 100)) };
     });
 
-    /*---------- MANUAL ADJUSTMENTS ----------*/
-    logMessage("[Info]: Applying manual adjustments.");
-    const manualAdjustmentsTotal = MANUAL_ADJUSTMENTS.reduce((sum, { adjustment }) => sum + adjustment, 0);
-
-    MANUAL_ADJUSTMENTS.forEach(({ date, adjustment, markerColor }) => {
-        const timestamp = getTimestampFromDate(date);
-        const futureDataPoints = performanceChart.series[0].data.filter(({ x }) => x >= timestamp);
-        futureDataPoints.forEach((data) => {
-            const baseExpenseAtTime = getExpenseWithoutFeeAndTaxAtTime(data.x);
-            const actualValue = (baseExpenseAtTime / 100) * (100 + data.y) + adjustment;
-            const percentage = ((actualValue - baseExpenseAtTime) / baseExpenseAtTime) * 100;
-            data.update({ y: percentage });
-        });
-
-        // Mark manual adjustment data point.
-        futureDataPoints[0]?.update({ marker: { enabled: true, fillColor: markerColor, radius: 5 } });
-    });
-
-    /*---------- UI VALUE UPDATES ----------*/
-    logMessage("[Info]: Updating UI values.");
-    const totalValueElement = document.querySelector(".val.v-ellip");
-    const totalValueParts = totalValueElement.textContent.split(" ");
-    const useComma = totalValueParts[1].charAt(totalValueParts[1].length - 3) === ",";
-    let totalValue = parseFloat(
-        totalValueParts[1].replace(useComma ? /\./g : /,/g, "").replace(useComma ? /,/g : /\./g, ".")
-    );
-    totalValue += manualAdjustmentsTotal + stockExpense + stockRevenue;
-    totalValueElement.textContent = `${totalValueParts[0]} ${formatNumber(totalValue, useComma)}`;
-
-    const revenueElement = document.querySelector(".val2.green") || document.querySelector(".val2.red");
-    let revenueValue = parseFloat(
-        revenueElement.textContent
-            .replace(/[+\-]/g, "")
-            .replace(useComma ? /\./g : /,/g, "")
-            .replace(useComma ? /,/g : /\./g, ".")
-    );
-    revenueValue += manualAdjustmentsTotal + stockRevenue;
-    revenueElement.textContent = `${revenueValue > 0 ? "+" : ""}${formatNumber(revenueValue, useComma)}`;
-    revenueElement.className = revenueValue > 0 ? "val2 green" : "val2 red";
-
-    const percentageElement = document.querySelector(".val.green") || document.querySelector(".val.red");
-    const percentageValue = performanceChart.series[0].data.at(-1).y;
-    percentageElement.textContent = `${percentageValue > 0 ? "+" : ""}${formatNumber(percentageValue, useComma)}%`;
-    percentageElement.className = percentageValue > 0 ? "val green" : "val red";
-
-    /*---------- REVENUE DATA CONSTRUCTION ----------*/
-    logMessage("[Info]: Constructing revenue data.");
-    function findAdjustment(x) {
-        return MANUAL_ADJUSTMENTS.find((e) => getTimestampFromDate(e.date) === x);
-    }
-
-    function createRevenuePoint(x, y, isAdjusted = false, markerColor) {
-        return {
-            x,
-            y,
-            ...(isAdjusted && { marker: { enabled: true, fillColor: markerColor, radius: 5 } }),
-        };
-    }
-
-    const revenueData = performanceChart.series[0].data.map(({ x, y }) => {
-        const baseExpense = getExpenseWithoutFeeAndTaxAtTime(x);
-        const adjustment = findAdjustment(x);
-        const isAdjusted = adjustment && !expenseData.some((data) => data.x === x);
-
-        return createRevenuePoint(x, (baseExpense / 100) * (100 + y), isAdjusted, adjustment?.markerColor ?? "");
-    });
-
-    // Insert expense points to create a natural revenue graph.
+    /* INSERT EXPENSE POINTS TO CREATE NATURAL REVENUE GRAPH */
     expenseData.slice(0, -1).forEach(({ x, y }, i) => {
         const nextExpense = expenseData[i + 1].y;
-
-        const index = revenueData.findIndex((data) => data.x === x);
-        if (index !== -1) {
-            const updatedRevenue = revenueData[index].y - (y - nextExpense);
-            const adjustment = findAdjustment(x);
-
-            revenueData.splice(index, 0, createRevenuePoint(x, updatedRevenue, !!adjustment, adjustment?.markerColor ?? ""));
+        const idx = revenueData.findIndex(d => d.x === x);
+        if (idx !== -1) {
+            const adjustedRevenue = revenueData[idx].y - (y - nextExpense);
+            revenueData.splice(idx, 0, { x, y: adjustedRevenue });
         }
     });
 
-    /*---------- CHART RENDERING ----------*/
-    logMessage("[Info]: Rendering chart container.");
-    const chartContainer = document.createElement("div");
-    chartContainer.id = "expense-revenue-chart";
-    chartContainer.style.width = "100%";
-    document.querySelector(".chartarea").appendChild(chartContainer);
+    /* SETUP CONTAINER */
+    const container = document.createElement('div');
+    container.id = 'expense-revenue-chart';
+    container.style.width = '100%';
+    document.querySelector('.chartarea').appendChild(container);
 
-    const highchartData = performanceChart.series[0].data.map(({ x, y, marker }) => ({ x, y, marker }));
-
+    /* RENDER CHART WITH MEMOIZATION & BOUNDARIES */
     function renderChart(from, to) {
-        logMessage(
-            `[Info]: Rendering chart for range from ${new Date(from).toLocaleDateString()} to ${new Date(
-                to
-            ).toLocaleDateString()}`
-        );
+        // update original performance chart
         const tmpHighChart = Highcharts.charts[0];
         const filteredHighchartData = highchartData.filter(({ x }) => x >= from && x <= to);
         tmpHighChart.series[0].setData(filteredHighchartData, true);
 
-        // Filter expense data and include boundary points.
-        const filteredExpenseData = expenseData.filter(({ x }) => x >= from && x <= to);
-        filteredExpenseData.unshift({ x: to, y: getExpenseAtTime(to) });
-        filteredExpenseData.push({ x: from, y: getExpenseAtTime(from) });
+        // expense data with start/end points
+        const baseExpense = expenseData.filter(p => p.x >= from && p.x <= to);
+        const filteredExpense = [...baseExpense];
+        filteredExpense.unshift({ x: to, y: getExpenseAtTime(to) });
+        filteredExpense.push({ x: from, y: getExpenseAtTime(from) });
 
-        const filteredRevenueData = revenueData.filter(({ x }) => x >= from && x <= to);
+        // revenue series with inserted expense points
+        const filteredRevenue = revenueData.filter(p => p.x >= from && p.x <= to);
 
-        Highcharts.chart("expense-revenue-chart", {
-            chart: { type: "scatter" },
-            title: { text: "Expense vs Revenue" },
-            xAxis: { gridLineWidth: 1, type: "datetime" },
+        Highcharts.chart('expense-revenue-chart', {
+            chart: { type: 'scatter' },
+            title: { text: 'Expense vs Revenue' },
+            xAxis: { type: 'datetime', gridLineWidth: 1 },
             yAxis: { gridLineWidth: 1 },
             tooltip: {
-                formatter: function () {
-                    return `${Highcharts.dateFormat("%d.%m.%Y", this.x)}<br>
-                            <span style="color: ${this.color}">●</span> ${this.series.name}: <b>${new Intl.NumberFormat(
-                        "en-US",
-                        { useGrouping: true, minimumFractionDigits: 0, maximumFractionDigits: 0 }
-                    )
-                        .format(this.y)
-                        .replace(/,/g, "'")}</b>`;
-                },
-                shared: false,
-                useHTML: true,
+                formatter() {
+                    return `${Highcharts.dateFormat('%d.%m.%Y', this.x)}<br>` +
+                        `<span style="color:${this.color}">●</span> ${this.series.name}: <b>${new Intl.NumberFormat('en-US',{useGrouping:true,minimumFractionDigits:0,maximumFractionDigits:0}).format(this.y).replace(/,/g, "'")}</b>`;
+                }, shared:false,useHTML:true
             },
             series: [
-                {
-                    lineWidth: 2,
-                    name: "Expense",
-                    data: filteredExpenseData,
-                    color: "#D32F2F",
-                    marker: { enabled: true, radius: 2, fillColor: "#6e0000" },
-                    step: "right",
-                },
-                {
-                    lineWidth: 2,
-                    name: "Revenue",
-                    data: filteredRevenueData,
-                    color: "#008080",
-                    marker: { enabled: false },
-                },
-            ],
+                { name:'Expense', data:filteredExpense, lineWidth:2, color:'#D32F2F', marker:{enabled:true,radius:2,fillColor:'#6e0000'}, step:'right' },
+                { name:'Revenue', data:filteredRevenue, lineWidth:2, color:'#008080', marker:{enabled:false} }
+            ]
         });
     }
 
-    /*---------- DATE RANGE HANDLING ----------*/
+    /* DATE RANGE HANDLING */
     function getDateRange() {
-        logMessage("[Info]: Getting date range from datepicker.");
-        const rangeText = document.getElementById("daterangepicker").querySelector("span").textContent.trim();
-        const [fromDate, toDate] = rangeText.split(" - ");
-
-        return [dateToTimestamp(convertDateFormat(fromDate)), dateToTimestamp(convertDateFormat(toDate))];
+        const [f, t] = document.getElementById('daterangepicker').querySelector('span').textContent.split(' - ');
+        return [dateToTimestamp(f), dateToTimestamp(t)];
     }
 
-    /*---------- INITIALIZATION ----------*/
-    logMessage("[Info]: Initializing chart rendering.");
-    let [initialMinDate, initialMaxDate] = getDateRange();
-    const startDateTimestamp = DEFAULT_START_DATE
-        ? dateToTimestamp(convertDateFormat(DEFAULT_START_DATE))
-        : initialMinDate;
+    let [minD, maxD] = getDateRange();
+    const startD = DEFAULT_START_DATE ? dateToTimestamp(DEFAULT_START_DATE) : minD;
+    renderChart(startD, maxD);
 
-    renderChart(startDateTimestamp, initialMaxDate);
-
-    // Once the chart is loaded for the first time remove the log container and disable further DOM logging.
-    if (document.getElementById("log-messages")) {
-        document.getElementById("log-messages").remove();
-    }
-    isInitialLoading = false;
-
-    // Check for date range changes periodically and re-render the chart.
-    function dateRangeUpdateCheck() {
-        logMessage("[Info]: Checking for date range update.");
-        const [minDate, maxDate] = getDateRange();
-        if (minDate !== initialMinDate || maxDate !== initialMaxDate) {
-            initialMinDate = minDate;
-            initialMaxDate = maxDate;
-            renderChart(minDate, maxDate);
+    setInterval(() => {
+        const [newMin, newMax] = getDateRange();
+        if (newMin !== minD || newMax !== maxD) {
+            minD = newMin; 
+            maxD = newMax;
+            renderChart(minD, maxD);
         }
-        setTimeout(dateRangeUpdateCheck, DATE_RANGE_UPDATE_INTERVAL);
-    }
-
-    dateRangeUpdateCheck();
+    }, DATE_RANGE_UPDATE_INTERVAL);
 })();
