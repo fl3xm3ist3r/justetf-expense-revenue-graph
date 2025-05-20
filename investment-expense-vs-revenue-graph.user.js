@@ -26,7 +26,7 @@ const TRADING_TYPES = {
 
 const MARKER_COLOR = {
     ADJUSTMENT: "#ff6718",
-    STRATEGY: "#eaed18",
+    STRATEGY: "#8a2be2",
 };
 
 const DATE_RANGE_UPDATE_INTERVAL = 5000; // in milliseconds
@@ -34,10 +34,10 @@ const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
 
 const DEFAULT_START_DATE = null; // example: "dd.mm.yyyy" (null for default)
 
-const MANUAL_ADJUSTMENTS = []; // example: {date: "dd.mm.yyyy", adjustment: 1000, marker: MARKER_COLOR.ADJUSTMENT} ([] for default)
+const MANUAL_ADJUSTMENTS = []; // example: {date: "dd.mm.yyyy", adjustment: 1000, markerColor: MARKER_COLOR.ADJUSTMENT} ([] for default)
 
 // Yahoo Finance (seecret) API based
-const STOCKS_TRADING_HISTORY = []; // example: { type: TRADING_TYPES.BUY, symbol: "", date: "dd.mm.yyyy", amount: 1, price: 100.5, fee: 2, tax: 0.5 } ([] for default)
+const STOCKS_TRADING_HISTORY = []; // example: { type: TRADING_TYPE.BUY, symbol: "", date: "dd.mm.yyyy", amount: 1, price: 100.5, fee: 2, tax: 0.5 } ([] for default)
 
 const EXCHANGE_RATES = []; // example: { name: "CHF", rate: 1, reverse: 1 }, { name: "USD", rate: 0.91, reverse: 1.1 } ([] for default)
 
@@ -345,7 +345,7 @@ function logMessage(message) {
     logMessage("[Info]: Applying manual adjustments.");
     const manualAdjustmentsTotal = MANUAL_ADJUSTMENTS.reduce((sum, { adjustment }) => sum + adjustment, 0);
 
-    MANUAL_ADJUSTMENTS.forEach(({ date, adjustment }) => {
+    MANUAL_ADJUSTMENTS.forEach(({ date, adjustment, markerColor }) => {
         const timestamp = getTimestampFromDate(date);
         const futureDataPoints = performanceChart.series[0].data.filter(({ x }) => x >= timestamp);
         futureDataPoints.forEach((data) => {
@@ -356,7 +356,7 @@ function logMessage(message) {
         });
 
         // Mark manual adjustment data point.
-        futureDataPoints[0]?.update({ marker: { enabled: true, fillColor: "#ff6718", radius: 5 } });
+        futureDataPoints[0]?.update({ marker: { enabled: true, fillColor: markerColor, radius: 5 } });
     });
 
     /*---------- UI VALUE UPDATES ----------*/
@@ -405,7 +405,7 @@ function logMessage(message) {
         const adjustment = findAdjustment(x);
         const isAdjusted = adjustment && !expenseData.some((data) => data.x === x);
 
-        return createRevenuePoint(x, (baseExpense / 100) * (100 + y), isAdjusted, adjustment.markerColor);
+        return createRevenuePoint(x, (baseExpense / 100) * (100 + y), isAdjusted, adjustment?.markerColor ?? "");
     });
 
     // Insert expense points to create a natural revenue graph.
@@ -417,7 +417,7 @@ function logMessage(message) {
             const updatedRevenue = revenueData[index].y - (y - nextExpense);
             const adjustment = findAdjustment(x);
 
-            revenueData.splice(index, 0, createRevenuePoint(x, updatedRevenue, !!adjustment));
+            revenueData.splice(index, 0, createRevenuePoint(x, updatedRevenue, !!adjustment, adjustment?.markerColor ?? ""));
         }
     });
 
