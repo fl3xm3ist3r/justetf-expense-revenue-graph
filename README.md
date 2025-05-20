@@ -13,6 +13,8 @@
 
 ## Description
 
+### NOTE!!! Yahoo Finance will most probably ip bann you if you have to much stocks, so be aware of this
+
 This script generates a dynamic graph that compares investment expenses to revenue directly on your JustETF activity site. It is designed for personal use and helps you visualize your portfolio performance effectively.
 
 ###### Note: Since the script relies on percentage-based revenue calculations from justETF rather than absolute figures, the results may include minor rounding errors.
