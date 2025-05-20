@@ -24,12 +24,17 @@ const TRADING_TYPES = {
     SELL: "Verkauf",
 };
 
+const MARKER_COLOR = {
+    ADJUSTMENT: "#ff6718",
+    STRATEGY: "#eaed18",
+};
+
 const DATE_RANGE_UPDATE_INTERVAL = 5000; // in milliseconds
 const ADJUSTMENT_DELAY = 500; // delay before reapplying adjustments
 
 const DEFAULT_START_DATE = null; // example: "dd.mm.yyyy" (null for default)
 
-const MANUAL_ADJUSTMENTS = []; // example: {date: "dd.mm.yyyy", adjustment: 1000} ([] for default)
+const MANUAL_ADJUSTMENTS = []; // example: {date: "dd.mm.yyyy", adjustment: 1000, marker: MARKER_COLOR.ADJUSTMENT} ([] for default)
 
 // Yahoo Finance (seecret) API based
 const STOCKS_TRADING_HISTORY = []; // example: { type: TRADING_TYPES.BUY, symbol: "", date: "dd.mm.yyyy", amount: 1, price: 100.5, fee: 2, tax: 0.5 } ([] for default)
@@ -387,11 +392,11 @@ function logMessage(message) {
         return MANUAL_ADJUSTMENTS.find((e) => getTimestampFromDate(e.date) === x);
     }
 
-    function createRevenuePoint(x, y, isAdjusted = false) {
+    function createRevenuePoint(x, y, isAdjusted = false, markerColor) {
         return {
             x,
             y,
-            ...(isAdjusted && { marker: { enabled: true, fillColor: "#ff6718", radius: 5 } }),
+            ...(isAdjusted && { marker: { enabled: true, fillColor: markerColor, radius: 5 } }),
         };
     }
 
@@ -400,7 +405,7 @@ function logMessage(message) {
         const adjustment = findAdjustment(x);
         const isAdjusted = adjustment && !expenseData.some((data) => data.x === x);
 
-        return createRevenuePoint(x, (baseExpense / 100) * (100 + y), isAdjusted);
+        return createRevenuePoint(x, (baseExpense / 100) * (100 + y), isAdjusted, adjustment.markerColor);
     });
 
     // Insert expense points to create a natural revenue graph.
