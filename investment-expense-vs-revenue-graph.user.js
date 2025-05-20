@@ -264,11 +264,11 @@ function logMessage(message) {
                         const data = JSON.parse(response.responseText);
                         resolve(reduceStockResponse(data));
                     } catch (error) {
-                        reject("Error parsing JSON: " + error);
+                        logMessage(`[Error]: parsing JSON: ${error}`);
                     }
                 },
                 onerror: function (error) {
-                    reject("Error fetching data: " + error);
+                    logMessage(`[Error]: fetching data: ${error}`);
                 },
             });
         });
