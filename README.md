@@ -13,8 +13,6 @@
 
 ## Description
 
-### NOTE!!! Yahoo Finance will most probably ip bann you if you have to much stocks, so be aware of this
-
 This script generates a dynamic graph that compares investment expenses to revenue directly on your JustETF activity site. It is designed for personal use and helps you visualize your portfolio performance effectively.
 
 ###### Note: Since the script relies on percentage-based revenue calculations from justETF rather than absolute figures, the results may include minor rounding errors.
@@ -41,8 +39,6 @@ This script is not affiliated with or endorsed by JustETF. It uses data from Jus
 -   **Real-Time Updates**: The graph automatically refreshes when you modify the date ranges.
 -   **Automated Expense Calculation**: Expenses are calculated automatically based on your trade history.
 -   **Configurable Default Start Date**: The graph comes with a preset default start date, which can be configured at [line 30](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L30).
--   **Manual Adjustments**: You can make manual adjustments for stocks that JustETF does not track. To implement this, populate the MANUAL_ADJUSTMENTS array at [line 32](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L32) with the desired delta adjustment amount and the specific date for which you want to apply the adjustment. These manual adjustments will be visually represented by an orange dot on the graphs.
--   **Additional Stocks using Yahoo Finance**: You can add stocks that JustETF does not track. To implement this, populate the STOCKS_TRADING_HISTORY array at [line 35](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L35) with the desired Stocks just as you already know it from justETF. These stocks will be automatically included into the graphs. IMPORTANT: don't forget to set the EXCHANGE_RATES at [line 37](https://github.com/fl3xm3ist3r/justetf-expense-revenue-graph/blob/master/investment-expense-vs-revenue-graph.user.js#L37) for your desired currency. This is needed since Yahoo Finance has different currencies for Stocks sometimes.
 
 ## Contribution
 
